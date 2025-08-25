@@ -63,3 +63,26 @@ def load_object(file_path):
 
     except Exception as e:
         raise CustomException(e,sys)
+
+def user_input_scaling_anxiety(user_input:int):
+    original_max=67
+    original_min=19
+    scaled_input=original_min+((user_input-1)*((original_max + original_min)/9))
+
+    return scaled_input
+
+
+def user_input_scaling_depression(user_input:int):
+    original_max=66
+    original_min=16
+    scaled_input=original_min+((user_input-1)*((original_max + original_min)/9))
+
+    return scaled_input
+
+
+def user_input_scaling_self_esteem(user_input:int):
+    original_max=83
+    original_min=19
+    scaled_input=original_min+((user_input-1)*((original_max + original_min)/9))
+
+    return scaled_input
