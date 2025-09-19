@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stress Prediction System</title>
+    <style>
+        /* --- Basic Page Styles --- */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* --- Main Form Container (CHANGED FOR DESKTOP) --- */
+        .form-container {
+            background-color: #ffffff;
+            border: 2px solid #4A90E2;
+            width: 100%;            /* Use full available width */
+            height: 100%;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        /* --- Form Header --- */
+        .form-header {
+            background-color: #90EE90;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .form-header h2 {
+            margin: 0;
+            color: #333;
+            font-size: 24px;
+        }
+
+        /* --- Form Body --- */
+        .form-body {
+            padding: 25px 30px;
+        }
+        
+        /* --- Form Sections Wrapper (NEW FOR LAYOUT) --- */
+        .form-sections {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Create a two-column layout */
+            gap: 40px; /* Space between columns */
+        }
+
+        /* --- Section Headings --- */
+        h3 {
+            font-size: 20px;
+            color: #333;
+            margin-top: 15px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        h3:first-of-type {
+            margin-top: 0;
+        }
+        
+        /* --- Input Fields Layout --- */
+        .input-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            font-size: 16px;
+            color: #555;
+        }
+
+        .input-group input[type="number"] {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 16px;
+        }
+        
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+
+        /* --- Submit Button --- */
+        .submit-btn-wrapper {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .submit-btn {
+            background-color: #90EE90;
+            color: #333;
+            border: none;
+            border-radius: 20px;
+            padding: 12px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            background-color: #7ACD7A;
+        }
+
+        /* --- Responsive Adjustments --- */
+        @media (max-width: 768px) {
+            .form-sections {
+                grid-template-columns: 1fr; /* Stack to one column on smaller screens */
+                gap: 20px;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="form-container">
+        <div class="form-header">
+            <h2>Stress Prediction System</h2>
+        </div>
+        <div class="form-body">
+            <form action="#" method="POST">
+                
+                <div class="form-sections">
+                    <div class="section">
+                        <h3>Mental Features:</h3>
+                        <div class="input-group">
+                            <label for="anxiety_level">Anxiety Level</label>
+                            <input type="number" id="anxiety_level" name="anxiety_level" min="0" max="10" placeholder="0-10" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="self_esteem">Self Esteem</label>
+                            <input type="number" id="self_esteem" name="self_esteem" min="0" max="10" placeholder="0-10" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="mental_health_history">Mental Health history</label>
+                            <input type="number" id="mental_health_history" name="mental_health_history" min="0" max="1" placeholder="0-1" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="depression">Depression</label>
+                            <input type="number" id="depression" name="depression" min="0" max="10" placeholder="0-10" required>
+                        </div>
+                         <div class="input-group">
+                            <label for="future_career_concerns">future_career_concerns</label>
+                            <input type="number" id="future_career_concerns" name="future_career_concerns" min="0" max="5" placeholder="0-5" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="peer_pressure">peer_pressure</label>
+                            <input type="number" id="peer_pressure" name="peer_pressure" min="0" max="5" placeholder="0-5" required>
+                        </div>
+                    </div>
+                    
+                    <div class="section">
+                        <h3>Health Features:</h3>
+                         <div class="input-group">
+                            <label for="headache">Headache</label>
+                            <input type="number" id="headache" name="headache" min="0" max="5" placeholder="0-5" required>
+                        </div>
+                         <div class="input-group">
+                            <label for="blood_pressure">Blood Pressure</label>
+                            <input type="number" id="blood_pressure" name="blood_pressure" min="1" max="3" placeholder="1-3" required>
+                        </div>
+                         <div class="input-group">
+                            <label for="sleep_quality">Sleep Quality</label>
+                            <input type="number" id="sleep_quality" name="sleep_quality" min="0" max="5" placeholder="0-5" required>
+                        </div>
+                         <div class="input-group">
+                            <label for="breathing_problems">Breathing Problems</label>
+                            <input type="number" id="breathing_problems" name="breathing_problems" min="0" max="5" placeholder="0-5" required>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Environment Features:</h3>
+                 <div class="input-group">
+                    <label for="noise_level">Noise level</label>
+                    <input type="number" id="noise_level" name="noise_level" min="0" max="5" placeholder="0-5" required>
+                </div>
+                 <div class="input-group">
+                    <label for="living_conditions">Living Conditions</label>
+                    <input type="number" id="living_conditions" name="living_conditions" min="0" max="5" placeholder="0-5" required>
+                </div>
+                 <div class="input-group">
+                    <label for="safety">Safety</label>
+                    <input type="number" id="safety" name="safety" min="0" max="5" placeholder="0-5" required>
+                </div>
+                 <div class="input-group">
+                    <label for="basic_needs">Basic Needs</label>
+                    <input type="number" id="basic_needs" name="basic_needs" min="0" max="5" placeholder="0-5" required>
+                </div>
+                <div class="input-group">
+                    <label for="social_support">Social Support</label>
+                    <input type="number" id="social_support" name="social_support" min="0" max="5" placeholder="0-5" required>
+                </div>
+                <div class="input-group">
+                    <label for="extracurricular_activity">Extracurricular Activity</label>
+                    <input type="number" id="extracurricular_activity" name="extracurricular_activity" min="0" max="5" placeholder="0-5" required>
+                </div>
+                 <div class="input-group">
+                    <label for="bullying">Bullying</label>
+                    <input type="number" id="bullying" name="bullying" min="0" max="5" placeholder="0-5" required>
+                </div>
+                
+                <div class="submit-btn-wrapper">
+                    <button type="submit" class="submit-btn">
+                        <a href="Info_page.html">Submit Form</a>
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+</body>
+</html>
