@@ -66,6 +66,7 @@ class Patient(BaseModel):
     gender:Annotated[str,Literal[Field(...,description='Gender of patient',examples=['Male','Female','Other'])]]
     email:Annotated[str,Field(None,description="Email of patient",examples=['soham@example.com'])]
     password:Annotated[str,Field(...,min_length=6,description="Password of patient",examples=['password123'])]
+    streak:Annotated[int,Field(0,description="Streak of patient")]
 
     @field_validator('mobile_no')
     @classmethod
@@ -170,7 +171,6 @@ class Update_Patient(BaseModel):
         return age
     
 
-
 @app.post("/create_patient")
 def create_patient(patient: Patient):
     data=patient.model_dump()
@@ -205,28 +205,44 @@ def predict_stress_level(patient_features: Patient_features):
 
     stress_level=prediction[0]
 
-    print(stress_level)
-
     stress_mapping={0:'Low',1:'Moderate',2:'High'}
+
+    # Prompt for chat model
     info_prompt=ChatPromptTemplate(
             [
                 SystemMessage
                 (
                     content=
-                    f"""->You are an helpful and empathetic mental wellness assistance.\n
-                    ->Your goal is to provide supportive, actionable advice based on a person's stress level.\n
+                    """->You are an helpful and empathetic mental wellness assistance.\n
+                    ->Your goal is to provide supportive, actionable advice and tasks which are performable based on a person's stress level.\n
                     ->There are 3 progessive stress levels:
                         1 = Small or Minor stress caused by burnout, fatigue, etc.(No need of doctor consultance).\n
                         2 = Medium or Mediocar level stress(recommend going for doctor consultance).\n
                         3 = Sever and Large level stress(Strongly recommend doctor consultance).\n
                     ->On this stress level you have to give soltuions such as mental exercises, breathing exercises etc.To help and support the person in stress and to remove his/her stress.Dont forget to recommend the doctor consultancy when required.\n
-                    ->Provide suggestion in clear, number list on given stress level only.Keep your tone warm and encouraging.\n
-                    ->Provide the suggestion in json format with key as 'suggestions' and value as list of suggestions.\n
-                      example:{{"breathing_exercises":["suggestion1","suggestion2","suggestion3"]}}
-                    ->Never ever suggest any medicine or any other things.
-                    ->Suggestions must be related to the stress level only.\n
-                    ->Suggest 8to 10 solutions to the patient.\n  
-                    """
+                    ->Provide suggestion in task format example:cycling,exercising,breathing exercises.In clear, number list on given stress level only.Keep your tone warm and encouraging.\n
+                    ->Give the soltion in json or dict format first the main body and then the 9 to 15 solutions and there descriptive name.\n
+                    example: "main body": "Here some descriptiona and humble text to help the person in stress",
+                       "solutions": "1(only number value)":"description of solution 1",
+                                     "2":"description of solution 2",
+                                     "3":"description of solution 3",
+                                     "4":"description of solution 4",
+                                     "5":"description of solution 5",
+                                     "6":"description of solution 6",
+                                     "7":"description of solution 7",
+                                     "8":"description of solution 8",
+                                     "9":"description of solution 9",
+                                     "10":"description of solution 10"
+                                     "11":"description of solution 11",
+                                     "12":"description of solution 12"
+                                     "13":"description of solution 13",
+                                     "14":"description of solution 14",
+                                     "15":"description of solution 15"
+            ->Make sure the solutions are actionable and easy to follow.\n  
+
+            ->Dont suggest data in any other format except json or dict.\n
+            ->output should start with json or dict only dont specify it that its json or dict format example '''json/dict dont do it.\n
+            """
                 ),
                 HumanMessage(
                     content=f"""The stress level of patient={stress_level}.\n
@@ -237,7 +253,8 @@ def predict_stress_level(patient_features: Patient_features):
                 )
             ]
         )
-    
+
+    # Initialize the chat model    
     llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     temperature=0.6,
@@ -248,16 +265,40 @@ def predict_stress_level(patient_features: Patient_features):
 
     response=llm.invoke(final_prompt)
 
-    print(type(response.content))
+    # Extract JSON content from the response 
+    # starting index of json
+    for i in range(len(response.content)):
+        if response.content[i]=='{':
+            keep_start=i
+            break
 
-    print(response.content)
+    # ending index of json
+    for i in range(len(response.content)):
+        if response.content[i]=='}':
+            keep_end=i+3
+            break
 
-    # suggestions=response.content.format()
+    json_content=response.content[keep_start:keep_end]
 
-    # print(suggestions)
+    json_content=eval(json_content)
+
+    # split the solutions into list
+    for i in range(len(json_content['solutions'])):
+        json_content['solutions'][f'{i+1}']=json_content['solutions'][f'{i+1}'].split(':')
+
+    # converting the solutions into dict/json format and converting the string numbers to int for better assessing
+    dict_solution=dict()
+
+    for key,value in json_content['solutions'].items():
+        if key.isdigit():
+            dict_solution[int(key)]=value
+
+    # Now removing the soltuions from main json content and adding the new dict_solution for int index acessing
+    json_content.pop('solutions')
+    json_content['solutions']=dict_solution
 
     return JSONResponse(status_code=200,content={"stress_level":stress_mapping[stress_level],
-    "suggestions":response.content})
+    "suggestions":json_content})
 
 @app.put("/update_patient/{mobile_no}")
 def update_patient(mobile_no: str, updated_patient_data: Patient):
