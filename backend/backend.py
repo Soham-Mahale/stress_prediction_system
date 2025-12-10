@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel,Field,computed_field,field_validator,model_validator
 from typing import Annotated,Literal,Optional
 import json
+import pprint
 
 from pymongo import MongoClient
 from bson import ObjectId   
@@ -104,22 +105,22 @@ class Patient(BaseModel):
 
 class Patient_features(BaseModel):
     # mental health features
-    anxiety:Annotated[int,Field(...,ge=0,le=10,examples=[5])]
-    self_esteem:Annotated[int,Field(...,ge=0,le=10,examples=[6])]
-    mental_health_history:Annotated[int,Field(...,ge=0,le=1,examples=[1])]
-    depression:Annotated[int,Field(...,ge=0,le=10,examples=[4])]
+    anxiety:Annotated[int,Field(...,ge=0,le=10)]
+    self_esteem:Annotated[int,Field(...,ge=0,le=10)]
+    mental_health_history:Annotated[int,Field(...,ge=0,le=1)]
+    depression:Annotated[int,Field(...,ge=0,le=10)]
 
     # health features
-    headache:Annotated[int,Field(...,ge=0,le=5,examples=[4])]
-    blood_pressure:Annotated[int,Field(...,ge=1,le=3,examples=[3])]
-    sleep_quality:Annotated[int,Field(...,ge=0,le=5,examples=[2])]
-    breathing_problems:Annotated[int,Field(...,ge=0,le=5,examples=[1])]
-    
+    headache:Annotated[int,Field(...,ge=0,le=5)]
+    blood_pressure:Annotated[int,Field(...,ge=1,le=3)]
+    sleep_quality:Annotated[int,Field(...,ge=0,le=5)]
+    breathing_problems:Annotated[int,Field(...,ge=0,le=5)]
+
     #environmental features
-    noise_level:Annotated[int,Field(...,ge=0,le=5,examples=[3])]
-    living_condition:Annotated[int,Field(...,ge=0,le=5,examples=[4])]
-    safety:Annotated[int,Field(...,ge=0,le=5,examples=[2])]
-    basic_needs:Annotated[int,Field(...,ge=0,le=5,examples=[1])]
+    noise_level:Annotated[int,Field(...,ge=0,le=5)]
+    living_condition:Annotated[int,Field(...,ge=0,le=5)]
+    safety:Annotated[int,Field(...,ge=0,le=5)]
+    basic_needs:Annotated[int,Field(...,ge=0,le=5)]
     future_carrer_concern:Annotated[int,Field(...,ge=0,le=5,examples=[3])]
     social_support:Annotated[int,Field(...,ge=0,le=3,examples=[3])]
     peer_pressure:Annotated[int,Field(...,ge=0,le=5,examples=[2])]    
@@ -188,24 +189,20 @@ def create_patient(patient: Patient):
     return JSONResponse(status_code=201, content=result)
 
 @app.post("/predict_stress_level")
-def predict_stress_level(patient_features: Patient_features):
+def predict_stress_level(patient_features: Patient_features,id:str=Query(...,description="Unique patient id",examples=["64b8f0f5e1b1c8b5f6d7e9a1"])):
 
     model=pickle.load(open('artifacts/model.pkl','rb'))
     preprocessor=pickle.load(open('artifacts/preprocessor.pkl','rb'))
-
+    print(patient_features,id)
     features=np.array([list(patient_features.model_dump().values())])
 
-    print(features)
-
     features=preprocessor.transform(features)
-
-    print(features)
 
     prediction=model.predict(features)
 
     stress_level=prediction[0]
 
-    stress_mapping={0:'Low',1:'Moderate',2:'High'}
+    stress_mapping={0:'High',1:'Moderate',2:'Low'}
 
     # Prompt for chat model
     info_prompt=ChatPromptTemplate(
@@ -282,23 +279,32 @@ def predict_stress_level(patient_features: Patient_features):
 
     json_content=eval(json_content)
 
-    # split the solutions into list
-    for i in range(len(json_content['solutions'])):
-        json_content['solutions'][f'{i+1}']=json_content['solutions'][f'{i+1}'].split(':')
+    parsing_info=json_content
 
-    # converting the solutions into dict/json format and converting the string numbers to int for better assessing
-    dict_solution=dict()
+    # # split the solutions into list
+    # for i in range(len(json_content['solutions'])):
+    #     json_content['solutions'][f'{i+1}']=json_content['solutions'][f'{i+1}'].split(':')
 
-    for key,value in json_content['solutions'].items():
-        if key.isdigit():
-            dict_solution[int(key)]=value
+    # # converting the solutions into dict/json format and converting the string numbers to int for better assessing
+    # dict_solution=dict()
 
-    # Now removing the soltuions from main json content and adding the new dict_solution for int index acessing
-    json_content.pop('solutions')
-    json_content['solutions']=dict_solution
+    # for key,value in json_content['solutions'].items():
+    #     if key.isdigit():
+    #         dict_solution[int(key)]=value
+
+    # # Now removing the soltuions from main json content and adding the new dict_solution for int index acessing
+    # json_content.pop('solutions')
+    # json_content['solutions']=dict_solution
+
+    client=MongoClient("mongodb://localhost:27017/")
+    db=client['stress_management_system']
+    collection=db['users']
+
+    collection.update_one({'_id':ObjectId(id)},{'$set':{'tasks':parsing_info['solutions']}})
 
     return JSONResponse(status_code=200,content={"stress_level":stress_mapping[stress_level],
-    "suggestions":json_content})
+    "suggestions":parsing_info['solutions']})
+
 
 @app.put("/update_patient/{mobile_no}")
 def update_patient(mobile_no: str, updated_patient_data: Patient):
@@ -312,6 +318,7 @@ def update_patient(mobile_no: str, updated_patient_data: Patient):
     collection.update_one({'mobile_no':int(mobile_no)},{'$set':updated_data})
 
     return JSONResponse(status_code=200, content=updated_data)
+
 
 @app.put("/delete_patient/{mobile_no}")
 def delete_patient(mobile_no:int):
@@ -327,6 +334,7 @@ def delete_patient(mobile_no:int):
             break
 
     return JSONResponse(status_code=200, content={"detail":"Patient deleted successfully"})
+
 
 @app.post("/login")
 def patient_login(credentials: dict):
@@ -349,6 +357,7 @@ def patient_login(credentials: dict):
     except Exception as e:
         return JSONResponse(status_code=500,content={'detail':f"Internal Server Error: {e}"})
 
+
 @app.get("/get_patient/{_id}")
 def get_patient(_id:str=Path(...,description="Unique patient id",examples=["64b8f0f5e1b1c8b5f6d7e9a1"])):
     client = MongoClient("mongodb://localhost:27017/")
@@ -362,3 +371,15 @@ def get_patient(_id:str=Path(...,description="Unique patient id",examples=["64b8
     data["_id"] = str(data["_id"])
     
     return JSONResponse(status_code=200, content=data)
+
+@app.post("/get_all_tasks")
+def get_all_tasks(id:str=Query(...,description="Unique patient id",examples=["64b8f0f5e1b1c8b5f6d7e9a1"])):
+    client = MongoClient("mongodb://localhost:27017/")
+    db = client["stress_management_system"]
+    collection = db["users"]
+
+    data =collection.find_one({'_id':ObjectId(id)})['tasks']
+    if not data:
+        raise HTTPException(status_code=404,detail="No tasks found")
+
+    data["_id"] = str(data["_id"])
