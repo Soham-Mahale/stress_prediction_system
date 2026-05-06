@@ -193,7 +193,12 @@ def predict_stress_level(patient_features: Patient_features,id:str=Query(...,des
 
     model=pickle.load(open('artifacts/model.pkl','rb'))
     preprocessor=pickle.load(open('artifacts/preprocessor.pkl','rb'))
-    print(patient_features,id)
+
+    client=MongoClient("mongodb://localhost:27017/")
+    db=client['stress_management_system']
+    collection=db['users']
+    
+
     features=np.array([list(patient_features.model_dump().values())])
 
     features=preprocessor.transform(features)
@@ -201,6 +206,29 @@ def predict_stress_level(patient_features: Patient_features,id:str=Query(...,des
     prediction=model.predict(features)
 
     stress_level=prediction[0]
+
+    stress_mapping={0:'High',1:'Moderate',2:'Low'}
+
+    collection.update_one({'_id':ObjectId(id)},{'$set':{'features':patient_features.model_dump(),'stress_level':stress_level}})
+
+    return JSONResponse(status_code=200,content={"stress_level":stress_mapping[stress_level]})
+
+
+
+@app.post("/generate_tasks/{mobile_no}")
+def generate_tasks(mobile_no:str):
+    client=MongoClient("mongodb://localhost:27017/")
+    db=client['stress_management_system']
+    collection=db['users']
+
+    patient_data=collection.find_one({'mobile_no':int(mobile_no)})
+
+    if not patient_data:
+        raise HTTPException(status_code=404,detail="Patient not found")
+
+    patient_features=Patient_features(**patient_data['features'])
+
+    stress_level=patient_data['stress_level']
 
     stress_mapping={0:'High',1:'Moderate',2:'Low'}
 
@@ -220,21 +248,21 @@ def predict_stress_level(patient_features: Patient_features,id:str=Query(...,des
                     ->Provide suggestion in task format example:cycling,exercising,breathing exercises.In clear, number list on given stress level only.Keep your tone warm and encouraging.\n
                     ->Give the soltion in json or dict format first the main body and then the 9 to 15 solutions and there descriptive name.\n
                     example: "main body": "Here some descriptiona and humble text to help the person in stress",
-                       "solutions": "1(only number value)":"description of solution 1",
-                                     "2":"description of solution 2",
-                                     "3":"description of solution 3",
-                                     "4":"description of solution 4",
-                                     "5":"description of solution 5",
-                                     "6":"description of solution 6",
-                                     "7":"description of solution 7",
-                                     "8":"description of solution 8",
-                                     "9":"description of solution 9",
-                                     "10":"description of solution 10"
-                                     "11":"description of solution 11",
-                                     "12":"description of solution 12"
-                                     "13":"description of solution 13",
-                                     "14":"description of solution 14",
-                                     "15":"description of solution 15"
+                       "solutions": "1(only number value)":"description of solution 1 and also suggest subtask for the task description.",
+                                     "2":"description of solution 2 and also suggest subtask for the task description.",
+                                     "3":"description of solution 3 and also suggest subtask for the task description.",
+                                     "4":"description of solution 4 and also suggest subtask for the task description.",
+                                     "5":"description of solution 5 and also suggest subtask for the task description.",
+                                     "6":"description of solution 6 and also suggest subtask for the task description.",
+                                     "7":"description of solution 7 and also suggest subtask for the task description.",
+                                     "8":"description of solution 8 and also suggest subtask for the task description.",
+                                     "9":"description of solution 9 and also suggest subtask for the task description.",
+                                     "10":"description of solution 10 and also suggest subtask for the task description."
+                                     "11":"description of solution 11 and also suggest subtask for the task description.",
+                                     "12":"description of solution 12 and also suggest subtask for the task description."
+                                     "13":"description of solution 13 and also suggest subtask for the task description.",
+                                     "14":"description of solution 14 and also suggest subtask for the task description.",
+                                     "15":"description of solution 15 and also suggest subtask for the task description."
             ->Make sure the solutions are actionable and easy to follow.\n  
 
             ->Dont suggest data in any other format except json or dict.\n
@@ -296,15 +324,16 @@ def predict_stress_level(patient_features: Patient_features,id:str=Query(...,des
     # json_content.pop('solutions')
     # json_content['solutions']=dict_solution
 
-    client=MongoClient("mongodb://localhost:27017/")
-    db=client['stress_management_system']
-    collection=db['users']
+    
 
     collection.update_one({'_id':ObjectId(id)},{'$set':{'tasks':parsing_info['solutions']}})
 
     return JSONResponse(status_code=200,content={"stress_level":stress_mapping[stress_level],
     "suggestions":parsing_info['solutions']})
 
+
+
+        
 
 @app.put("/update_patient/{mobile_no}")
 def update_patient(mobile_no: str, updated_patient_data: Patient):
@@ -357,7 +386,6 @@ def patient_login(credentials: dict):
     except Exception as e:
         return JSONResponse(status_code=500,content={'detail':f"Internal Server Error: {e}"})
 
-
 @app.get("/get_patient/{_id}")
 def get_patient(_id:str=Path(...,description="Unique patient id",examples=["64b8f0f5e1b1c8b5f6d7e9a1"])):
     client = MongoClient("mongodb://localhost:27017/")
@@ -383,3 +411,5 @@ def get_all_tasks(id:str=Query(...,description="Unique patient id",examples=["64
         raise HTTPException(status_code=404,detail="No tasks found")
 
     data["_id"] = str(data["_id"])
+
+    
