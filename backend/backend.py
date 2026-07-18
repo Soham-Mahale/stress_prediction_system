@@ -40,6 +40,85 @@ app.add_middleware(
 
 
 # utilities
+def parse_tasks(tasks_dict):
+    """
+    Parse tasks from a solution payload into structured format.
+    Supports AI output with numbered solution keys and separate subtasks lists.
+
+    Output format:
+    {
+      "1": {
+          "title": "...",
+          "description": "...",
+          "subtasks": {"1": "...", "2": "..."}
+      }
+    }
+    """
+    print("tasks_parsed",tasks_dict)
+    structured_tasks = {}
+
+    for key, value in tasks_dict.items():
+        if not key.isdigit():
+            continue
+
+        raw_text = str(value).strip()
+        title = raw_text
+        description = ""
+        subtasks = {}
+        subtask_key = f"subtasks_{key}"
+
+        # If subtasks are provided as a separate list
+        if subtask_key in tasks_dict and isinstance(tasks_dict[subtask_key], list):
+            if "Subtasks:" in raw_text:
+                before, _ = raw_text.split("Subtasks:", 1)
+            else:
+                before = raw_text
+
+            if ":" in before:
+                title, description = [part.strip() for part in before.split(":", 1)]
+            else:
+                title = before.strip()
+                description = ""
+
+            for idx, item in enumerate(tasks_dict[subtask_key], start=1):
+                if item is None:
+                    continue
+                subtasks[str(idx)] = str(item).strip()
+        else:
+            # Fallback parsing for tasks with inline "Subtasks:" text
+            if "Subtasks:" in raw_text:
+                before, after = raw_text.split("Subtasks:", 1)
+                if ":" in before:
+                    title, description = [part.strip() for part in before.split(":", 1)]
+                else:
+                    title = before.strip()
+                    description = ""
+
+                for line in after.split(";" if ";" in after else ","):
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    if stripped.startswith("*") or stripped.startswith("-"):
+                        cleaned_line = stripped.lstrip("*- ").strip()
+                        if cleaned_line:
+                            subtasks[str(len(subtasks) + 1)] = cleaned_line
+                    else:
+                        subtasks[str(len(subtasks) + 1)] = stripped
+            else:
+                if ":" in raw_text:
+                    title, description = [part.strip() for part in raw_text.split(":", 1)]
+                else:
+                    title = raw_text
+                    description = ""
+
+        structured_tasks[key] = {
+            "title": title,
+            "description": description,
+            "subtasks": subtasks
+        }
+
+    return structured_tasks
+
 def load_data()->list[dict]:
     client = MongoClient("mongodb://localhost:27017/")
     db = client["stress_management_system"]
@@ -47,15 +126,17 @@ def load_data()->list[dict]:
     data = collection.find()
     return list(data)
 
-def save_data(data:list[dict]):
+def save_data(data):
     client = MongoClient("mongodb://localhost:27017/")
     db = client["stress_management_system"]
     collection = db["users"]
-    if len(data)==7:
+
+    if isinstance(data, dict):
         collection.insert_one(data)
-    else:
-        collection.delete_many({})
+    elif isinstance(data, list) and data:
         collection.insert_many(data)
+    else:
+        raise ValueError("save_data requires a dict or non-empty list")
         
 
 
@@ -248,23 +329,24 @@ def generate_tasks(mobile_no:str):
                     ->Provide suggestion in task format example:cycling,exercising,breathing exercises.In clear, number list on given stress level only.Keep your tone warm and encouraging.\n
                     ->Give the soltion in json or dict format first the main body and then the 9 to 15 solutions and there descriptive name.\n
                     example: "main body": "Here some descriptiona and humble text to help the person in stress",
-                       "solutions": "1(only number value)":"description of solution 1 and also suggest subtask for the task description.",
-                                     "2":"description of solution 2 and also suggest subtask for the task description.",
-                                     "3":"description of solution 3 and also suggest subtask for the task description.",
-                                     "4":"description of solution 4 and also suggest subtask for the task description.",
-                                     "5":"description of solution 5 and also suggest subtask for the task description.",
-                                     "6":"description of solution 6 and also suggest subtask for the task description.",
-                                     "7":"description of solution 7 and also suggest subtask for the task description.",
-                                     "8":"description of solution 8 and also suggest subtask for the task description.",
-                                     "9":"description of solution 9 and also suggest subtask for the task description.",
-                                     "10":"description of solution 10 and also suggest subtask for the task description."
-                                     "11":"description of solution 11 and also suggest subtask for the task description.",
-                                     "12":"description of solution 12 and also suggest subtask for the task description."
-                                     "13":"description of solution 13 and also suggest subtask for the task description.",
-                                     "14":"description of solution 14 and also suggest subtask for the task description.",
-                                     "15":"description of solution 15 and also suggest subtask for the task description."
-            ->Make sure the solutions are actionable and easy to follow.\n  
-
+                       "solutions": "1(only number value)":"description of solution 1 and also suggest subtasks for the task description.",
+                                     "2":"description of solution 2 and also suggest subtasks for the task description.",
+                                     "3":"description of solution 3 and also suggest subtasks for the task description.",
+                                     "4":"description of solution 4 and also suggest subtasks for the task description.",
+                                     "5":"description of solution 5 and also suggest subtasks for the task description.",
+                                     "6":"description of solution 6 and also suggest subtasks for the task description.",
+                                     "7":"description of solution 7 and also suggest subtasks for the task description.",
+                                     "8":"description of solution 8 and also suggest subtasks for the task description.",
+                                     "9":"description of solution 9 and also suggest subtasks for the task description.",
+                                     "10":"description of solution 10 and also suggest subtasks for the task description."
+                                     "11":"description of solution 11 and also suggest subtasks for the task description.",
+                                     "12":"description of solution 12 and also suggest subtasks for the task description."
+                                     "13":"description of solution 13 and also suggest subtasks for the task description.",
+                                     "14":"description of solution 14 and also suggest subtasks for the task description.",
+                                     "15":"description of solution 15 and also suggest subtasks for the task description."
+            ->Make sure the solutions are actionable and easy to follow.\n
+            ->Give subtasks as string with ";" as separator But dont forget to add key "Subtask:" in descriptions.  
+            -> structure= "{"1":"title:decription.Subtasks:subtask_1;subtask2}"
             ->Dont suggest data in any other format except json or dict.\n
             ->output should start with json or dict only dont specify it that its json or dict format example '''json/dict dont do it.\n
             """
@@ -290,6 +372,7 @@ def generate_tasks(mobile_no:str):
 
     response=llm.invoke(final_prompt)
 
+
     # Extract JSON content from the response 
     # starting index of json
     for i in range(len(response.content)):
@@ -309,27 +392,13 @@ def generate_tasks(mobile_no:str):
 
     parsing_info=json_content
 
-    # # split the solutions into list
-    # for i in range(len(json_content['solutions'])):
-    #     json_content['solutions'][f'{i+1}']=json_content['solutions'][f'{i+1}'].split(':')
+    # Parse tasks into structured format with title and subtasks
+    structured_tasks = parse_tasks(parsing_info['solutions'])
 
-    # # converting the solutions into dict/json format and converting the string numbers to int for better assessing
-    # dict_solution=dict()
-
-    # for key,value in json_content['solutions'].items():
-    #     if key.isdigit():
-    #         dict_solution[int(key)]=value
-
-    # # Now removing the soltuions from main json content and adding the new dict_solution for int index acessing
-    # json_content.pop('solutions')
-    # json_content['solutions']=dict_solution
-
-    
-
-    collection.update_one({'_id':ObjectId(id)},{'$set':{'tasks':parsing_info['solutions']}})
+    collection.update_one({'_id':ObjectId(patient_data["_id"])},{'$set':{'tasks':structured_tasks}})
 
     return JSONResponse(status_code=200,content={"stress_level":stress_mapping[stress_level],
-    "suggestions":parsing_info['solutions']})
+    "suggestions":structured_tasks})
 
 
 
@@ -410,6 +479,7 @@ def get_all_tasks(id:str=Query(...,description="Unique patient id",examples=["64
     if not data:
         raise HTTPException(status_code=404,detail="No tasks found")
 
-    data["_id"] = str(data["_id"])
+    # data["_id"] = str(data["_id"])
+    return data
 
     
