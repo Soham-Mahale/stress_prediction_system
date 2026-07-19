@@ -253,7 +253,18 @@ class Update_Patient(BaseModel):
         return age
     
 
-@app.post("/create_patient")
+class MobileUpdate(BaseModel):
+    mobile_no:Annotated[int,Field(...,description="New mobile number",examples=[9876543210])]
+
+    @field_validator('mobile_no')
+    @classmethod
+    def mobile_validator(cls,value):
+        if len(str(value))!=10:
+            raise HTTPException(status_code=400,detail="Mobile number must be 10 digits")
+        return value
+
+
+@app.post("profile/create")
 def create_patient(patient: Patient):
     data=patient.model_dump()
 
@@ -404,21 +415,43 @@ def generate_tasks(mobile_no:str):
 
         
 
-@app.put("/update_patient/{mobile_no}")
-def update_patient(mobile_no: str, updated_patient_data: Patient):
+@app.put("/profile/update/{mobile_no}")
+def update_patient(mobile_no: str, updated_patient_data: Update_Patient):
 
     client = MongoClient("mongodb://localhost:27017/")
     db = client["stress_management_system"]
     collection = db["users"]
 
-    updated_data=updated_patient_data.model_dump()
+    updated_data = {k: v for k, v in updated_patient_data.model_dump().items() if v is not None}
+
+    if not updated_data:
+        return JSONResponse(status_code=400, content={"detail": "No update fields provided"})
 
     collection.update_one({'mobile_no':int(mobile_no)},{'$set':updated_data})
 
     return JSONResponse(status_code=200, content=updated_data)
 
 
-@app.put("/delete_patient/{mobile_no}")
+@app.put("/profile/mobile_no/{mobile_no}")
+def update_patient_mobile_no(mobile_no: str, mobile_update: MobileUpdate):
+    client = MongoClient("mongodb://localhost:27017/")
+    db = client["stress_management_system"]
+    collection = db["users"]
+
+    current_patient = collection.find_one({'mobile_no': int(mobile_no)})
+    if not current_patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    existing_patient = collection.find_one({'mobile_no': int(mobile_update.mobile_no)})
+    if existing_patient and existing_patient['_id'] != current_patient['_id']:
+        raise HTTPException(status_code=400, detail="Mobile number already exists")
+
+    collection.update_one({'mobile_no':int(mobile_no)},{'$set':{'mobile_no':mobile_update.mobile_no}})
+
+    return JSONResponse(status_code=200, content={"detail":"Mobile number updated successfully","mobile_no":mobile_update.mobile_no})
+
+
+@app.put("/profile/delete/{mobile_no}")
 def delete_patient(mobile_no:int):
 
     client = MongoClient("mongodb://localhost:27017/")
@@ -432,7 +465,6 @@ def delete_patient(mobile_no:int):
             break
 
     return JSONResponse(status_code=200, content={"detail":"Patient deleted successfully"})
-
 
 @app.post("/login")
 def patient_login(credentials: dict):
@@ -455,7 +487,8 @@ def patient_login(credentials: dict):
     except Exception as e:
         return JSONResponse(status_code=500,content={'detail':f"Internal Server Error: {e}"})
 
-@app.get("/get_patient/{_id}")
+
+@app.get("/profile/{_id}")
 def get_patient(_id:str=Path(...,description="Unique patient id",examples=["64b8f0f5e1b1c8b5f6d7e9a1"])):
     client = MongoClient("mongodb://localhost:27017/")
     db = client["stress_management_system"]
