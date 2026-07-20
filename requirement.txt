@@ -1,8 +1,15 @@
-pandas 
+pandas
 seaborn
 numpy
 scikit-learn
 dill
 catboost
-flask
+fastapi
+uvicorn[standard]
+motor
+pydantic-settings
+passlib[bcrypt]
+python-dotenv
+email-validator
+tzdata
 -e .
