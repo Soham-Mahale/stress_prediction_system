@@ -29,3 +29,5 @@ async def ensure_indexes() -> None:
     await db["users"].create_index("email", unique=True)
     await db["profiles"].create_index("user_id", unique=True)
     await db["stress_assessments"].create_index([("user_id", 1), ("created_at", -1)])
+    await db["intervention_pools"].create_index("source_assessment_id", unique=True)
+    await db["intervention_pools"].create_index([("source_assessment_id", 1), ("created_at", -1)])

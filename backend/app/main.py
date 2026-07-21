@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.database import connect, disconnect, ensure_indexes
-from backend.app.routers import assessments, profiles, users
+from backend.app.routers import assessments, intervention_pool, profiles, users
 
 origins = [
     "http://localhost:5173",  # Vite React frontend
@@ -33,3 +33,4 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(profiles.router)
 app.include_router(assessments.router)
+app.include_router(intervention_pool.router)
