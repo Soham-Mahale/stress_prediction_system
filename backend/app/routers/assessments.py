@@ -39,6 +39,7 @@ async def create_assessment(
         "stress_score": None,
         "stress_level": None,
         "model_version": None,
+        "interventions_pool_generated": 0,
         "created_at": datetime.now(IST),
     }
 

@@ -47,7 +47,7 @@ class GeneratedIntervention(BaseModel):
         ...,
         min_length=2,
         max_length=5,
-        description="Concrete, actionable steps for completing this intervention",
+        description="2-5 Separate actionable non dependable tasks related to title of this intervention.",
     )
 
 

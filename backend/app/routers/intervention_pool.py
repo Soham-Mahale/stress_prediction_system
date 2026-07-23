@@ -6,6 +6,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import ValidationError
+from pymongo import ReturnDocument
 
 from backend.app.config import settings
 from backend.app.database import get_database
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/intervention_pool", tags=["intervention_pool"])
 # legacy_backend.py.bak and the stress_level column in artifacts/rawdata.csv
 # (0=High, 1=Moderate, 2=Low). The old prompt described 1/2/3 as ascending
 # severity, which never matched this; kept consistent here.
-STRESS_LABELS = {0: "High", 1: "Moderate", 2: "Low"}
+# STRESS_LABELS = {0: "High", 1: "Moderate", 2: "Low"}
 
 _SYSTEM_PROMPT = """You are a helpful and empathetic mental wellness assistant.
 Your goal is to generate supportive, actionable, personalized interventions based on a person's stress assessment.
@@ -92,8 +93,7 @@ async def generate_interventions(
         raise HTTPException(
             status_code=502, detail=f"LLM returned an invalid intervention pool: {exc}"
         )
-
-
+    
 @router.post("", response_model=InterventionPoolOut, status_code=201)
 async def create_intervention_pool(
     payload: InterventionPoolCreate, db: AsyncIOMotorDatabase = Depends(get_database)
@@ -105,25 +105,44 @@ async def create_intervention_pool(
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Scoped by user_id too, not just _id - otherwise a caller could pass
-    # any assessment id and pull another user's features into their pool.
-    assessment_doc = await db["stress_assessments"].find_one(
-        {"user_id": user_object_id, "source_assessment_id": assessment_object_id}
+    # Atomically: fetch the assessment, confirm it belongs to this user,
+    # confirm it's been scored, confirm it hasn't hit the generation cap,
+    # AND reserve this attempt by incrementing the counter - all in one
+    # round trip. If two requests race, only one can match the $lt filter
+    # per increment; the loser gets None back below.
+    assessment_doc = await db["stress_assessments"].find_one_and_update(
+        {
+            "user_id": user_object_id,
+            "source_assessment_id": assessment_object_id,
+            "stress_level": {"$ne": None},
+            "interventions_pool_generated": {"$lt": 2},
+        },
+        {"$inc": {"interventions_pool_generated": 1}},
+        return_document=ReturnDocument.AFTER,
     )
-    if not assessment_doc:
-        raise HTTPException(status_code=404, detail="Assessment not found for this user")
 
-    stress_level = assessment_doc.get("stress_level")
-    if stress_level is None:
+    if assessment_doc is None:
+        # Distinguish *why* it didn't match so the error isn't misleading.
+        exists = await db["stress_assessments"].find_one(
+            {"user_id": user_object_id, "source_assessment_id": assessment_object_id}
+        )
+        if not exists:
+            raise HTTPException(status_code=404, detail="Assessment not found for this user")
+        if exists.get("stress_level") is None:
+            raise HTTPException(
+                status_code=409,
+                detail="This assessment has not been scored yet (ML prediction not run) - "
+                "cannot generate an intervention pool from it.",
+            )
         raise HTTPException(
             status_code=409,
-            detail="This assessment has not been scored yet (ML prediction not run) - "
-            "cannot generate an intervention pool from it.",
+            detail="Cannot generate an intervention pool more than twice for this assessment",
         )
 
+    stress_level = assessment_doc["stress_level"]
     features = FeaturesIn(**assessment_doc["features"])
     llm_response = await generate_interventions(features, stress_level)
-    print("llm_response:",llm_response)
+
     interventions = [
         Intervention(
             intervention_id=str(ObjectId()),
@@ -138,7 +157,7 @@ async def create_intervention_pool(
     doc = {
         "user_id": user_object_id,
         "source_assessment_id": assessment_object_id,
-        "predicted_stress": STRESS_LABELS[stress_level],
+        "predicted_stress": stress_level,
         "interventions": [i.model_dump() for i in interventions],
         "created_at": now,
     }
@@ -146,8 +165,11 @@ async def create_intervention_pool(
     result = await db["intervention_pools"].insert_one(doc)
 
     return InterventionPoolOut(
+        id=str(result.inserted_id),
+        user_id=payload.user_id,
         source_assessment_id=payload.source_assessment_id,
         predicted_stress=doc["predicted_stress"],
         interventions=interventions,
         created_at=now,
     )
+
